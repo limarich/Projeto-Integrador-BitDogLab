@@ -1,5 +1,9 @@
 #include <stdio.h>
+#include "hardware/clocks.h"
 #include "pico/stdlib.h"
+#include "libs/leds.h"
+#include "hardware/pio.h"
+#include "pio_matrix.pio.h"
 
 // Define os pinos GPIO para o LED RGB
 #define LED_G_PIN 11    // VERDE
@@ -10,24 +14,23 @@
 #define BUTTON_B 6      // Pino do buzzer
 #define DEBOUNCE_MS 200 // intervalo minimo de 200ms para o debounce
 
-typedef enum
-{
-    RED,
-    GREEN,
-    BLUE,
-    WHITE
-} color_mode;
+typedef color_options color_mode; // tipo criado na biblioteca leds.h
 
 // inicialização do GPIO
 void setup_gpio_pin(uint pin, uint dir);
 // muda a cor do sistema
 void switch_color_mode(color_mode mode);
+// inicializacao da PIO
+void PIO_setup(PIO *pio, uint *sm);
 
 // o led inicia em vermelho
 uint current_color_mode = RED;
 // variaveis para gerencia o debounce
 uint last_interrupt_a = 0;
 uint last_interrupt_b = 0;
+// variaveis relacionadas a matriz de led
+PIO pio;
+uint sm;
 
 // gerenciador de interrupcoes
 void gpio_irq_handler(uint gpio, uint32_t events)
@@ -87,8 +90,15 @@ int main()
     gpio_set_irq_enabled_with_callback(BUTTON_A, GPIO_IRQ_EDGE_FALL, true, &gpio_irq_handler);
     gpio_set_irq_enabled(BUTTON_B, GPIO_IRQ_EDGE_FALL, true);
 
+    // inicializa a PIO
+    PIO_setup(&pio, &sm);
+    // função de teste
+    test_matrix(pio, sm); // faz uma animação indicando que está tudo OK e logo apaga a matriz
+
+    direction current_direction = NORTH;
     while (true)
     {
+        // reset dos leds
         gpio_put(LED_R_PIN, 0);
         gpio_put(LED_G_PIN, 0);
         gpio_put(LED_B_PIN, 0);
@@ -115,7 +125,9 @@ int main()
             break;
         }
 
-        sleep_ms(10);
+        // aponta a direção do joystick
+        draw_arrow(pio, sm, WEST, current_color_mode);
+        sleep_ms(2000);
     }
 }
 
@@ -123,6 +135,15 @@ void setup_gpio_pin(uint pin, uint dir)
 {
     gpio_init(pin);
     gpio_set_dir(pin, dir);
+}
+
+void PIO_setup(PIO *pio, uint *sm)
+{
+    // configurações da PIO
+    *pio = pio0;
+    uint offset = pio_add_program(*pio, &pio_matrix_program);
+    *sm = pio_claim_unused_sm(*pio, true);
+    pio_matrix_program_init(*pio, *sm, offset, LED_PIN);
 }
 
 void switch_color_mode(color_mode mode)
