@@ -1,11 +1,11 @@
 #include <stdio.h>
 #include "hardware/clocks.h"
 #include "pico/stdlib.h"
-#include "libs/leds.h"
 #include "hardware/pio.h"
 #include "hardware/adc.h"
 #include "pio_matrix.pio.h"
-#include <stdlib.h>
+#include "libs/leds.h"
+#include "libs/buzzer.h"
 
 // Define os pinos GPIO para o LED RGB
 #define LED_G_PIN 11    // VERDE
@@ -41,6 +41,9 @@ uint sm;
 // grava os pontos iniciais do joystick
 uint initial_vx = 0;
 uint initial_vy = 0;
+// controle manual do buzzer
+volatile bool should_play_buzzer = false;
+float buzzer_frequency = 0;
 
 // gerenciador de interrupcoes
 void gpio_irq_handler(uint gpio, uint32_t events)
@@ -61,6 +64,7 @@ void gpio_irq_handler(uint gpio, uint32_t events)
             {
                 switch_color_mode(current_color_mode + 1);
             }
+            buzzer_frequency = 1046.50; // algo como 'C'
         }
     }
     else if (gpio == BUTTON_A)
@@ -77,6 +81,8 @@ void gpio_irq_handler(uint gpio, uint32_t events)
             {
                 switch_color_mode(current_color_mode - 1);
             }
+
+            buzzer_frequency = 1396.91; // algo como 'F'
         }
     }
 }
@@ -109,6 +115,9 @@ int main()
     adc_init();
     adc_gpio_init(VY_PIN);
     adc_gpio_init(VX_PIN);
+
+    // setup do buzzer
+    initialization_buzzers(BUZZER_A, BUZZER_B); // BUZZER A - 10 e BUZZER B - 21 definidos na biblioteca buzzers.h
 
     uint current_direction = NORTH;
 
@@ -150,6 +159,13 @@ int main()
         handle_arrow_direction(&current_direction);
         // aponta a direção do joystick
         draw_arrow(pio, sm, current_direction, current_color_mode);
+
+        // efeito sonoro
+        if (should_play_buzzer)
+        {
+            buzzer_pwm(BUZZER_A, buzzer_frequency, 50);
+            should_play_buzzer = false;
+        }
         sleep_ms(100);
     }
 }
@@ -172,7 +188,7 @@ void PIO_setup(PIO *pio, uint *sm)
 void switch_color_mode(color_mode mode)
 {
     current_color_mode = mode;
-    // efeito sonoro para indicar a mudança
+    should_play_buzzer = true; // indica a mundança da cor
 }
 
 void handle_arrow_direction(uint *dir)

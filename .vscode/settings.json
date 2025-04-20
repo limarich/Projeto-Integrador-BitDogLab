@@ -42,6 +42,9 @@
         "leds.h": "c",
         "pio.h": "c",
         "clocks.h": "c",
-        "pio_matrix.pio.h": "c"
+        "pio_matrix.pio.h": "c",
+        "buzzer.h": "c",
+        "stddef.h": "c",
+        "pwm.h": "c"
     }
 }
