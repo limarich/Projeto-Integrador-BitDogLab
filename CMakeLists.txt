@@ -26,7 +26,7 @@ project(integracao-perifericos-rp2040 C CXX ASM)
 
 pico_sdk_init()
 
-add_executable(${PROJECT_NAME}  integracao-perifericos-rp2040.c libs/leds.c libs/buzzer.c)
+add_executable(${PROJECT_NAME}  integracao-perifericos-rp2040.c libs/leds.c libs/buzzer.c libs/ssd1306.c)
 
 # configura PIO 
 pico_generate_pio_header(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/pio_matrix.pio)
@@ -40,6 +40,7 @@ target_link_libraries(${PROJECT_NAME}
         hardware_pio
         hardware_adc
         hardware_pwm
+        hardware_i2c
 )
 
 target_link_libraries(${PROJECT_NAME}   

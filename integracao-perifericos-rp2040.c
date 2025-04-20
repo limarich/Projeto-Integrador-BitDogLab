@@ -6,6 +6,7 @@
 #include "pio_matrix.pio.h"
 #include "libs/leds.h"
 #include "libs/buzzer.h"
+#include "libs/ssd1306.h"
 
 // Define os pinos GPIO para o LED RGB
 #define LED_G_PIN 11    // VERDE
@@ -18,6 +19,10 @@
 #define VY_PIN 26       // eixo Y do joystick
 #define VX_PIN 27       // eixo X do joystick
 #define DEADZONE 300    // valor para ignorar a leitura do joystick
+#define I2C_PORT i2c1
+#define I2C_SDA 14
+#define I2C_SCL 15
+#define address 0x3C
 
 typedef color_options color_mode; // tipo criado na biblioteca leds.h
 
@@ -28,7 +33,13 @@ void switch_color_mode(color_mode mode);
 // inicializacao da PIO
 void PIO_setup(PIO *pio, uint *sm);
 // calcula a direção indicada pela matriz de leds
-void handle_arrow_direction(uint *dir);
+void handle_arrow_direction(uint *dir, uint vx, uint vy);
+// cibera o barramento I2C se estiver travado
+bool i2c_recovery();
+// inicializa o display
+void setup_display();
+// desenha o quadrado do display na posição desejada
+void draw_square(uint top, uint left);
 
 // o led inicia em vermelho
 uint current_color_mode = RED;
@@ -44,6 +55,8 @@ uint initial_vy = 0;
 // controle manual do buzzer
 volatile bool should_play_buzzer = false;
 float buzzer_frequency = 0;
+// variavel global do display
+ssd1306_t ssd;
 
 // gerenciador de interrupcoes
 void gpio_irq_handler(uint gpio, uint32_t events)
@@ -119,6 +132,14 @@ int main()
     // setup do buzzer
     initialization_buzzers(BUZZER_A, BUZZER_B); // BUZZER A - 10 e BUZZER B - 21 definidos na biblioteca buzzers.h
 
+    // setup do display
+    setup_display();
+    ssd1306_fill(&ssd, false);
+    ssd1306_rect(&ssd, 3, 3, 122, 58, true, false);
+    draw_square(HEIGHT / 2 - 4, WIDTH / 2 - 4);
+
+    ssd1306_send_data(&ssd);
+
     uint current_direction = NORTH;
 
     adc_select_input(1);
@@ -156,7 +177,19 @@ int main()
             break;
         }
 
-        handle_arrow_direction(&current_direction);
+        adc_select_input(1);
+        int vx = adc_read();
+
+        adc_select_input(0);
+        int vy = adc_read();
+
+        handle_arrow_direction(&current_direction, vx, vy);
+
+        // Mapeia joystick para display
+        uint8_t x_display = (vx * (WIDTH - 4)) / 4095;
+        uint8_t y_display = (-vy * (HEIGHT - 4)) / 4095;
+
+        draw_square(y_display, x_display);
         // aponta a direção do joystick
         draw_arrow(pio, sm, current_direction, current_color_mode);
 
@@ -166,6 +199,7 @@ int main()
             buzzer_pwm(BUZZER_A, buzzer_frequency, 50);
             should_play_buzzer = false;
         }
+
         sleep_ms(100);
     }
 }
@@ -191,14 +225,8 @@ void switch_color_mode(color_mode mode)
     should_play_buzzer = true; // indica a mundança da cor
 }
 
-void handle_arrow_direction(uint *dir)
+void handle_arrow_direction(uint *dir, uint vx, uint vy)
 {
-    adc_select_input(1);
-    int vx = adc_read();
-
-    adc_select_input(0);
-    int vy = adc_read();
-
     // Cálculo do desvio a partir do centro
     int dx = vx - initial_vx;
     int dy = vy - initial_vy;
@@ -235,4 +263,64 @@ void handle_arrow_direction(uint *dir)
         *dir = EAST;
     else if (left)
         *dir = WEST;
+}
+
+bool i2c_recovery()
+{
+    gpio_set_function(I2C_SDA, GPIO_FUNC_SIO);
+    gpio_set_function(I2C_SCL, GPIO_FUNC_SIO);
+
+    gpio_set_dir(I2C_SDA, GPIO_IN);
+    gpio_set_dir(I2C_SCL, GPIO_OUT);
+
+    for (int i = 0; i < 9; i++) // 9 ciclos para liberar o barramento
+    {
+        gpio_put(I2C_SCL, 1);
+        sleep_us(10);
+        gpio_put(I2C_SCL, 0);
+        sleep_us(10);
+    }
+
+    gpio_set_dir(I2C_SDA, GPIO_OUT);
+    gpio_put(I2C_SDA, 1);
+    sleep_us(10);
+    gpio_put(I2C_SCL, 1);
+    sleep_us(10);
+
+    gpio_set_function(I2C_SDA, GPIO_FUNC_I2C);
+    gpio_set_function(I2C_SCL, GPIO_FUNC_I2C);
+
+    return true;
+}
+void setup_display()
+{
+    i2c_recovery();
+
+    i2c_init(I2C_PORT, 400 * 1000);
+
+    gpio_set_function(I2C_SDA, GPIO_FUNC_I2C);
+    gpio_set_function(I2C_SCL, GPIO_FUNC_I2C);
+    gpio_pull_up(I2C_SDA);
+    gpio_pull_up(I2C_SCL);
+
+    int retries = 3;
+    while (retries--)
+    {
+        ssd1306_init(&ssd, WIDTH, HEIGHT, false, address, I2C_PORT);
+
+        break;
+    }
+
+    ssd1306_config(&ssd);
+    ssd1306_send_data(&ssd);
+
+    ssd1306_fill(&ssd, false);
+    ssd1306_send_data(&ssd);
+}
+
+void draw_square(uint top, uint left)
+{
+    ssd1306_fill(&ssd, false);
+    ssd1306_draw_square(&ssd, top, left, true, 8, true);
+    ssd1306_send_data(&ssd);
 }
