@@ -40,6 +40,8 @@
         "stdlib.h": "c",
         "timer.h": "c",
         "leds.h": "c",
-        "pio.h": "c"
+        "pio.h": "c",
+        "clocks.h": "c",
+        "pio_matrix.pio.h": "c"
     }
 }

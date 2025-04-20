@@ -31,13 +31,14 @@ add_executable(${PROJECT_NAME}  integracao-perifericos-rp2040.c libs/leds.c)
 # configura PIO 
 pico_generate_pio_header(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/pio_matrix.pio)
 
-pico_enable_stdio_uart(${PROJECT_NAME}   1)
-pico_enable_stdio_usb(${PROJECT_NAME}   0)
+pico_enable_stdio_uart(${PROJECT_NAME}   0)
+pico_enable_stdio_usb(${PROJECT_NAME}   1)
 
 target_link_libraries(${PROJECT_NAME}  
         pico_stdlib
         hardware_clocks
         hardware_pio
+        hardware_adc
 )
 
 target_link_libraries(${PROJECT_NAME}   

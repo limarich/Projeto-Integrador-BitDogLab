@@ -3,7 +3,9 @@
 #include "pico/stdlib.h"
 #include "libs/leds.h"
 #include "hardware/pio.h"
+#include "hardware/adc.h"
 #include "pio_matrix.pio.h"
+#include <stdlib.h>
 
 // Define os pinos GPIO para o LED RGB
 #define LED_G_PIN 11    // VERDE
@@ -13,6 +15,9 @@
 #define BUTTON_A 5      // Pino do buzzer
 #define BUTTON_B 6      // Pino do buzzer
 #define DEBOUNCE_MS 200 // intervalo minimo de 200ms para o debounce
+#define VY_PIN 26       // eixo Y do joystick
+#define VX_PIN 27       // eixo X do joystick
+#define DEADZONE 300    // valor para ignorar a leitura do joystick
 
 typedef color_options color_mode; // tipo criado na biblioteca leds.h
 
@@ -22,6 +27,8 @@ void setup_gpio_pin(uint pin, uint dir);
 void switch_color_mode(color_mode mode);
 // inicializacao da PIO
 void PIO_setup(PIO *pio, uint *sm);
+// calcula a direção indicada pela matriz de leds
+void handle_arrow_direction(uint *dir);
 
 // o led inicia em vermelho
 uint current_color_mode = RED;
@@ -31,6 +38,9 @@ uint last_interrupt_b = 0;
 // variaveis relacionadas a matriz de led
 PIO pio;
 uint sm;
+// grava os pontos iniciais do joystick
+uint initial_vx = 0;
+uint initial_vy = 0;
 
 // gerenciador de interrupcoes
 void gpio_irq_handler(uint gpio, uint32_t events)
@@ -95,7 +105,19 @@ int main()
     // função de teste
     test_matrix(pio, sm); // faz uma animação indicando que está tudo OK e logo apaga a matriz
 
-    direction current_direction = NORTH;
+    // setup do joystick
+    adc_init();
+    adc_gpio_init(VY_PIN);
+    adc_gpio_init(VX_PIN);
+
+    uint current_direction = NORTH;
+
+    adc_select_input(1);
+    initial_vx = adc_read();
+
+    adc_select_input(0);
+    initial_vy = adc_read();
+
     while (true)
     {
         // reset dos leds
@@ -125,9 +147,10 @@ int main()
             break;
         }
 
+        handle_arrow_direction(&current_direction);
         // aponta a direção do joystick
-        draw_arrow(pio, sm, WEST, current_color_mode);
-        sleep_ms(2000);
+        draw_arrow(pio, sm, current_direction, current_color_mode);
+        sleep_ms(100);
     }
 }
 
@@ -150,4 +173,50 @@ void switch_color_mode(color_mode mode)
 {
     current_color_mode = mode;
     // efeito sonoro para indicar a mudança
+}
+
+void handle_arrow_direction(uint *dir)
+{
+    adc_select_input(1);
+    int vx = adc_read();
+
+    adc_select_input(0);
+    int vy = adc_read();
+
+    // Cálculo do desvio a partir do centro
+    int dx = vx - initial_vx;
+    int dy = vy - initial_vy;
+
+    printf("dx: %d, dy: %d\n", dx, dy);
+
+    bool left = false, right = false;
+    bool up = false, down = false;
+
+    if (dx > DEADZONE)
+        right = true;
+    else if (dx < -DEADZONE)
+        left = true;
+
+    if (dy > DEADZONE)
+        up = true;
+    else if (dy < -DEADZONE)
+        down = true;
+
+    // Decidir a direção com base nos flags
+    if (up && right)
+        *dir = NORTHEAST;
+    else if (up && left)
+        *dir = NORTHWEST;
+    else if (down && right)
+        *dir = SOUTHEAST;
+    else if (down && left)
+        *dir = SOUTHWEST;
+    else if (up)
+        *dir = NORTH;
+    else if (down)
+        *dir = SOUTH;
+    else if (right)
+        *dir = EAST;
+    else if (left)
+        *dir = WEST;
 }
