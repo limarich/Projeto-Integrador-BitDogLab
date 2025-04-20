@@ -69,6 +69,7 @@ void rotate_frame(frame *current_frame, uint rotations) {
 void draw_arrow(PIO pio, uint sm, direction dir, color_options color)
 {
     pixel pixel_color = {255, 0, 0}, black = {0, 0, 0};
+    float intensity = 0.125;
 
     switch (color)
     {
@@ -137,7 +138,7 @@ void draw_arrow(PIO pio, uint sm, direction dir, color_options color)
         default:
             break;
         }
-        draw_pio(regular_arrow_frame, pio, sm, 0.5);
+        draw_pio(regular_arrow_frame, pio, sm, intensity);
     } else {
     
         switch (dir)
@@ -153,10 +154,10 @@ void draw_arrow(PIO pio, uint sm, direction dir, color_options color)
         }
         
         if(dir == SOUTHEAST || dir ==  NORTHWEST) {
-            draw_pio(diagonal_arrow_left_frame, pio, sm, 0.5);
+            draw_pio(diagonal_arrow_left_frame, pio, sm, intensity);
 
         } else {
-            draw_pio(diagonal_arrow_right_frame, pio, sm, 0.5);
+            draw_pio(diagonal_arrow_right_frame, pio, sm, intensity);
         }
     }
 
