@@ -3,6 +3,7 @@
 #include "pico/stdlib.h"
 #include "hardware/pio.h"
 #include "hardware/adc.h"
+#include "pico/time.h"
 #include "pio_matrix.pio.h"
 #include "libs/leds.h"
 #include "libs/buzzer.h"
@@ -19,10 +20,10 @@
 #define VY_PIN 26       // eixo Y do joystick
 #define VX_PIN 27       // eixo X do joystick
 #define DEADZONE 300    // valor para ignorar a leitura do joystick
-#define I2C_PORT i2c1
-#define I2C_SDA 14
-#define I2C_SCL 15
-#define address 0x3C
+#define I2C_PORT i2c1   // Define a porta I2C
+#define I2C_SDA 14      // SDA
+#define I2C_SCL 15      // SCL
+#define address 0x3C    // endereço do display
 
 typedef color_options color_mode; // tipo criado na biblioteca leds.h
 
@@ -57,6 +58,15 @@ volatile bool should_play_buzzer = false;
 float buzzer_frequency = 0;
 // variavel global do display
 ssd1306_t ssd;
+//  controle manual de atualização do display
+volatile bool update_display = false;
+
+// controle separado da atualização do display
+bool display_timer_callback(repeating_timer_t *rt)
+{
+    update_display = true;
+    return true; // mantém o timer ativo
+}
 
 // gerenciador de interrupcoes
 void gpio_irq_handler(uint gpio, uint32_t events)
@@ -148,6 +158,10 @@ int main()
     adc_select_input(0);
     initial_vy = adc_read();
 
+    // controle da atualização do display com timer
+    repeating_timer_t display_timer;
+    add_repeating_timer_ms(100, display_timer_callback, NULL, &display_timer);
+
     while (true)
     {
         // reset dos leds
@@ -183,16 +197,22 @@ int main()
         adc_select_input(0);
         int vy = adc_read();
 
+        printf("vx: %d, vy: %d\n", vx, vy);
         handle_arrow_direction(&current_direction, vx, vy);
 
         // Mapeia joystick para display
-        uint8_t x_display = (vx * (WIDTH - 4)) / 4095;
-        uint8_t y_display = (-vy * (HEIGHT - 4)) / 4095;
+        uint8_t x_display = vx == 0 ? 8 : (vx * (WIDTH - 4)) / 4095;
+        uint8_t y_display = vy == 0 ? 8 : ((4095 - vy) * (HEIGHT - 8)) / 4095;
 
-        draw_square(y_display, x_display);
         // aponta a direção do joystick
         draw_arrow(pio, sm, current_direction, current_color_mode);
 
+        if (update_display)
+        {
+            update_display = false;
+
+            draw_square(y_display, x_display);
+        }
         // efeito sonoro
         if (should_play_buzzer)
         {
@@ -231,7 +251,7 @@ void handle_arrow_direction(uint *dir, uint vx, uint vy)
     int dx = vx - initial_vx;
     int dy = vy - initial_vy;
 
-    printf("dx: %d, dy: %d\n", dx, dy);
+    // printf("dx: %d, dy: %d\n", dx, dy);
 
     bool left = false, right = false;
     bool up = false, down = false;

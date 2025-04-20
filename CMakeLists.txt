@@ -41,6 +41,7 @@ target_link_libraries(${PROJECT_NAME}
         hardware_adc
         hardware_pwm
         hardware_i2c
+        pico_time
 )
 
 target_link_libraries(${PROJECT_NAME}   
