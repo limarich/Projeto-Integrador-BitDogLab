@@ -19,6 +19,7 @@
 #define DEBOUNCE_MS 200 // intervalo minimo de 200ms para o debounce
 #define VY_PIN 26       // eixo Y do joystick
 #define VX_PIN 27       // eixo X do joystick
+#define JOYSTICK_SW 22  // pino do botão sw
 #define DEADZONE 300    // valor para ignorar a leitura do joystick
 #define I2C_PORT i2c1   // Define a porta I2C
 #define I2C_SDA 14      // SDA
@@ -47,6 +48,7 @@ uint current_color_mode = RED;
 // variaveis para gerencia o debounce
 uint last_interrupt_a = 0;
 uint last_interrupt_b = 0;
+uint last_interrupt_sw = 0;
 // variaveis relacionadas a matriz de led
 PIO pio;
 uint sm;
@@ -60,6 +62,8 @@ float buzzer_frequency = 0;
 ssd1306_t ssd;
 //  controle manual de atualização do display
 volatile bool update_display = false;
+// controla o preenchimento do quadrado
+volatile bool square_filled = true;
 
 // controle separado da atualização do display
 bool display_timer_callback(repeating_timer_t *rt)
@@ -108,6 +112,17 @@ void gpio_irq_handler(uint gpio, uint32_t events)
             buzzer_frequency = 1396.91; // algo como 'F'
         }
     }
+    else if (gpio == JOYSTICK_SW)
+    {
+        if (current_time - last_interrupt_sw > DEBOUNCE_MS)
+        {
+            last_interrupt_sw = current_time;
+            square_filled = !square_filled;
+
+            buzzer_frequency = 1864.66; // algo como 'A#'
+            should_play_buzzer = true;
+        }
+    }
 }
 
 int main()
@@ -121,13 +136,16 @@ int main()
     // setup dos botões
     setup_gpio_pin(BUTTON_A, GPIO_IN);
     setup_gpio_pin(BUTTON_B, GPIO_IN);
+    setup_gpio_pin(JOYSTICK_SW, GPIO_IN);
     // pull up
     gpio_pull_up(BUTTON_A);
     gpio_pull_up(BUTTON_B);
+    gpio_pull_up(JOYSTICK_SW);
 
     // habilita a interrupção
     gpio_set_irq_enabled_with_callback(BUTTON_A, GPIO_IRQ_EDGE_FALL, true, &gpio_irq_handler);
     gpio_set_irq_enabled(BUTTON_B, GPIO_IRQ_EDGE_FALL, true);
+    gpio_set_irq_enabled(JOYSTICK_SW, GPIO_IRQ_EDGE_FALL, true);
 
     // inicializa a PIO
     PIO_setup(&pio, &sm);
@@ -202,7 +220,7 @@ int main()
 
         // Mapeia joystick para display
         uint8_t x_display = vx == 0 ? 8 : (vx * (WIDTH - 4)) / 4095;
-        uint8_t y_display = vy == 0 ? 8 : ((4095 - vy) * (HEIGHT - 8)) / 4095;
+        uint8_t y_display = vy == 0 ? 8 : ((4095 - vy) * (HEIGHT - 4)) / 4095;
 
         // aponta a direção do joystick
         draw_arrow(pio, sm, current_direction, current_color_mode);
@@ -341,6 +359,6 @@ void setup_display()
 void draw_square(uint top, uint left)
 {
     ssd1306_fill(&ssd, false);
-    ssd1306_draw_square(&ssd, top, left, true, 8, true);
+    ssd1306_draw_square(&ssd, top, left, true, 8, square_filled);
     ssd1306_send_data(&ssd);
 }
