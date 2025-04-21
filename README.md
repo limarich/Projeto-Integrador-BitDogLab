@@ -3,6 +3,12 @@
 > A proposta desse projeto é de utilizar os periféricos disponíveis da BitdogLab em conjunto para produzir algum resultado.
 
 ---
+### Demonstração
+![Assista ao Vídeo](https://youtu.be/v2qFn__Rc2U)
+
+Caso o link não funcione copie esse aqui: **https://youtu.be/v2qFn__Rc2U**
+
+---
 
 ### Recursos da placa utilizados:
 
